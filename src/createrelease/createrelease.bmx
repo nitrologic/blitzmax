@@ -30,7 +30,7 @@ Function Sys( t$ )
 	Local i=t.find( " " )
 	If i=-1 i=t.length
 	Local cmd$=t[..i]
-	If cmd="bmk" Or cmd=".bmk" 
+	If cmd="bbmk" Or cmd=".bmk" 
 		cmd=BlitzMaxPath()+"/bin/"+cmd
 ?Win32
 		cmd:+".exe"
@@ -45,11 +45,11 @@ End Function
 Function BackupBmk()
 	Local src$,dst$
 ?Win32
-	src=BlitzMaxPath()+"/bin/bmk.exe"
-	dst=BlitzMaxPath()+"/bin/.bmk.exe"
+	src=BlitzMaxPath()+"/bin/bbmk.exe"
+	dst=BlitzMaxPath()+"/bin/.bbmk.exe"
 ?Not Win32
-	src=BlitzMaxPath()+"/bin/bmk"
-	dst=BlitzMaxPath()+"/bin/.bmk"
+	src=BlitzMaxPath()+"/bin/bbmk"
+	dst=BlitzMaxPath()+"/bin/.bbmk"
 ?
 	If FileType( dst )<>FILETYPE_NONE Return
 ?Win32
