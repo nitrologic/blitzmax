@@ -6,7 +6,7 @@ Import BRL.StandardIO
 ?macos
 Import Pub.MacOS
 ?
-Const BNG_VERSION:String = "3.16"
+Const BBMK_VERSION:String = "3.16"
 
 Const ALL_SRC_EXTS$="bmx;i;c;m;h;cpp;cxx;mm;hpp;hxx;s;cc"
 
@@ -267,10 +267,10 @@ Function EscapeSpaces:String(path:String)
 End Function
 
 Function Usage:String(fullUsage:Int = False)
-	Local s:String = "~nUsage: bmk <operation> [options] source~n~n"
+	Local s:String = "~nUsage: bbmk <operation> [options] source~n~n"
 
 	If Not fullUsage Then
-		s:+ "(start bmk with no parameters for more usage information)~n~n"
+		s:+ "(start bbmk with no parameters for more usage information)~n~n"
 	Else
 		s:+ "Operations :~n"
 		s:+ "~tmakeapp~n"
@@ -390,8 +390,8 @@ Function Usage:String(fullUsage:Int = False)
 End Function
 
 Function VersionInfo(gcc:String, cores:Int)
-	Local s:String = "bng "
-	s:+ BNG_VERSION + " "
+	Local s:String = "bbmk "
+	s:+ BBMK_VERSION + " "
 ?threaded
 	s:+ "mt-"
 ?

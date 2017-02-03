@@ -1327,7 +1327,7 @@ Type TProcessTask
 		res = system_(command)
 ?
 		If res Then
-			Local s:String = "Build Error: failed to compile (" + res + ") " + source
+			Local s:String = "BBMK Build Error: failed to compile (" + res + ") " + source
 			Throw s
 		End If
 	End Method

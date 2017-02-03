@@ -526,7 +526,7 @@ End Function
 
 '
 ' Change History :
-' 3.17 03/02/2017 - assaulted by nitrologic and renamed bng
+' 3.17 03/02/2017 - assaulted by nitrologic and renamed bbmk
 ' 3.16 31/07/2016 - Added support for direct import of .a files.
 ' 3.15 16/07/2016 - Linux build additions. Support for musl libc and static linking.
 '                   Fixed Win32 32-bit link issue on recent 64-bit MinGW.
