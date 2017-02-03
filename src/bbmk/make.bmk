@@ -1,0 +1,458 @@
+#!BMK
+
+@define assemble
+	local src = nvl(arg1, %infile%)
+	local obj = nvl(arg2, %outfile%)
+
+	sys.DeleteFile(obj)
+	
+	if bmk.Platform() == "macos" then
+		if bmk.CPU() == "ppc" then
+			cmd = "as -arch ppc"
+		elseif bmk.CPU() == "x86" then
+			cmd = "as -arch i386"
+		else
+			cmd = "as -arch x86_64"
+		end
+		cmd = cmd .. " -W -o " .. bmk.Quote(obj) .. " " .. bmk.Quote(src)
+	else
+		if bmk.Platform() == "win32" then
+			local prefix = bmk.Option("path_to_wine", "")
+			if prefix ~= "" then
+				prefix = prefix .. " "
+			end
+			
+			cmd = prefix .. bmk.Quote(utils.BlitzMaxPath() .. "/bin/fasm.exe") .. " "
+		else
+			cmd = bmk.Quote(utils.BlitzMaxPath() .. "/bin/fasm") .. " "
+		end
+		
+		if bmk.Platform() == "linux" or bmk.Platform() == "android" or bmk.Platform() == "raspberrypi" then
+			cmd = cmd .. " -m32768 "
+		end
+		
+		cmd = cmd .. bmk.Quote(src) .. " " .. bmk.Quote(obj)
+	end
+
+	if bmk.MultiSys(cmd, src) ~= 0 then
+		bmk.ThrowNew("Build Error: Failed to assemble " .. src)
+	end
+@end
+
+@define compileBMX
+	local src = nvl(arg1, %infile%)
+	local obj = nvl(arg2, %outfile%)
+	local opts = nvl(arg3, %options%)
+
+	sys.DeleteFile(obj)
+	
+	local bcc_app = "bcc"
+
+	# if we are doing a universal build, be sure and call the correct bcc!
+	if %universal% == "1" and bmk.CPU() == "ppc" then
+		bcc_app = bcc_app .. "_ppc"
+	end
+	
+	if bmk.Platform() == "win32" then
+		bcc_app = bcc_app .. ".exe"
+	end
+	
+	local prefix = ""
+	if bmk.Platform() == "win32" then
+		prefix = bmk.Option("path_to_wine", "")
+		if prefix ~= "" then
+			prefix = prefix .. " "
+		end
+	end
+
+	azm = sys.StripExt(obj) .. ".s"
+	cmd = prefix .. bmk.Quote(utils.BlitzMaxPath() .. "/bin/" .. bcc_app) .." " .. opts .. " -o " .. bmk.Quote(azm) .. " " .. bmk.Quote(src)
+
+	if bmk.MultiSys( cmd, src ) ~= 0 then
+		bmk.ThrowNew("Build Error: failed to compile " .. src)
+	end
+
+	#if bmk.Platform() == "macos" and bmk.CPU() == "x86" and bmk.BCCVersion() == "BlitzMax" then
+	#	cmd = bmk.Quote(utils.BlitzMaxPath() .. "/bin/fasm2as") .. " " .. bmk.Quote(azm)
+	#		if bmk.Sys( cmd ) ~= 0 then
+	#			bmk.ThrowNew("Fasm2as failed - please contact BRL!")
+	#	end
+	#end
+
+	# TODO : we can't call another generated function from here... so we'd need to make sure this is called elsewhere.
+	#assemble(nil, azm, obj)
+@end
+
+@define fasm2as
+	local src = nvl(arg1, %infile%)
+	local obj = nvl(arg2, %outfile%)
+
+	local azm = sys.StripExt(obj) .. ".s"
+
+	if bmk.Platform() == "macos" and bmk.CPU() == "x86" and bmk.BCCVersion() == "BlitzMax" then
+		cmd = bmk.Quote(utils.BlitzMaxPath() .. "/bin/fasm2as") .. " " .. bmk.Quote(azm)
+		if bmk.MultiSys( cmd ) ~= 0 then
+				bmk.ThrowNew("Fasm2as failed - please contact BRL!")
+		end
+	end
+
+@end
+
+@define compileC
+	local src = nvl(arg1, %infile%)
+	local obj = nvl(arg2, %outfile%)
+	local opts = arg3
+
+	sys.DeleteFile(obj)
+
+	#opts = opts .. " " .. %cc_opts% .. " " .. %BMK_CC_OPTS%
+
+	local ext = sys.ExtractExt(src)
+
+	if bmk.Platform() == "macos" or bmk.Platform() == "osx" or bmk.Platform() == "ios" then
+	
+		if bmk.Platform() == "macos" or bmk.Platform() == "osx" then
+			cmd = "gcc"
+		
+			if ext == "cpp" or ext == "cxx" or ext == "mm" or ext == "cc" then
+				cmd = "g++"
+			end
+		else
+			cmd = bmk.Option(bmk.BuildName("gcc"), "gcc")
+			
+			if ext == "cpp" or ext == "cxx" or ext == "mm" or ext == "cc" then
+				cmd = bmk.Option(bmk.BuildName("g++"), "g++")
+			end
+		end
+		
+		# need to use gcc, not llvm...
+		# 10.7
+		# but for 10.8 we have no choice...
+		if tonumber(%macos_version%) >= 4208 and tonumber(%macos_version%) < 4224 then
+			cmd = cmd .. "-4.2"
+		end
+
+		if bmk.CPU() == "ppc" and (bmk.Platform() == "macos" or bmk.Platform() == "osx") then
+			cmd = cmd .. " -arch ppc "
+		elseif bmk.CPU() == "x86" then
+			cmd = cmd .. " -arch i386 "
+		elseif bmk.CPU() == "x64" then
+			cmd = cmd .. " -arch x86_64 "
+		elseif bmk.CPU() == "armv7" and bmk.Platform() == "ios" then
+			cmd = cmd .. " -arch armv7 "
+		elseif bmk.CPU() == "arm64" and bmk.Platform() == "ios" then
+			cmd = cmd .. " -arch arm64 "
+		end
+		
+		if bmk.Platform() == "ios" then
+			cmd = cmd .. " -isysroot " .. bmk.Option("ios.sysroot", "")
+		end
+		
+	elseif bmk.Platform() == "win32" then
+		cmd = bmk.Option("path_to_gcc", bmk.MinGWBinPath() .. "/gcc.exe")
+		if ext == "cpp" or ext == "cxx" or ext == "mm" or ext == "cc" then
+			cmd = bmk.Option("path_to_gpp", bmk.MinGWBinPath() .. "/g++.exe")
+		end
+		
+	elseif bmk.Platform() == "linux" or bmk.Platform() == "android" or bmk.Platform() == "raspberrypi" then
+		cmd = bmk.Option(bmk.BuildName("gcc"), "gcc")
+	elseif bmk.Platform() == "emscripten" then
+		cmd = bmk.Option(bmk.BuildName("gcc"), "emcc")
+		
+		cmd = cmd .. " -Wno-warn-absolute-paths "
+	end
+
+	# disable warnings ?
+	if %CC_WARNINGS% == "" then
+		opts = opts .. " -w"
+	end
+	
+	if bmk.BCCVersion() ~= "BlitzMax" then
+		opts = opts .. " -DBMX_NG"
+	end
+	
+	local genDebug = ""
+	if bmk.IsDebugBuild() == 1 then
+		genDebug = " -g"
+	end
+
+	# Remove -fno-exceptions if we have provided -fexceptions
+	local cc_opts = %cc_opts%
+
+	if cc_opts:find("-fexceptions") ~= nil then
+		cc_opts = cc_opts:gsub("%-fno%-exceptions", print)
+	end
+
+	if opts:find("-fexceptions") ~= nil then
+		cc_opts = cc_opts:gsub("%-fno%-exceptions", "")
+	end
+
+	cmd = cmd .. opts .. cc_opts .. %mod_ccopts% .. genDebug .. " -o " .. bmk.Quote(obj) .. " " .. bmk.Quote(src)
+
+	if bmk.MultiSys( cmd, src ) ~= 0 then
+		bmk.ThrowNew("Build Error: failed to compile " .. src)
+	end
+
+@end
+
+@define addresourcepath
+	globals.Add("resource_path", arg1)
+@end
+
+@define addlib
+	globals.Add("libs", arg1)
+@end
+
+@define addoption
+	globals.Add(arg1, arg2)
+@end
+
+## adds a cc_opt option
+@define addccopt
+	globals.AddOption("cc_opts", arg1, arg2)
+@end
+
+@define setccopt
+	globals.SetOption("cc_opts", arg1, arg2)
+@end
+
+@define addwin32ccopt
+	if bmk.Platform() == "win32" then
+		globals.AddOption("cc_opts", arg1, arg2)
+	end
+@end
+
+@define setwin32ccopt
+	if bmk.Platform() == "win32" then
+		globals.SetOption("cc_opts", arg1, arg2)
+	end
+@end
+
+@define addmacccopt
+	if bmk.Platform() == "macos" then
+		globals.AddOption("cc_opts", arg1, arg2)
+	end
+@end
+
+@define setmacccopt
+	if bmk.Platform() == "macos" then
+		globals.SetOption("cc_opts", arg1, arg2)
+	end
+@end
+
+@define addmacppcccopt
+	if bmk.Platform() == "macos" and bmk.CPU() == "ppc" then
+		globals.AddOption("cc_opts", arg1, arg2)
+	end
+@end
+
+@define setmacppcccopt
+	if bmk.Platform() == "macos" and bmk.CPU() == "ppc" then
+		globals.SetOption("cc_opts", arg1, arg2)
+	end
+@end
+
+@define addmacx86ccopt
+	if bmk.Platform() == "macos" and bmk.CPU() == "x86" then
+		globals.AddOption("cc_opts", arg1, arg2)
+	end
+@end
+
+@define setmacx86ccopt
+	if bmk.Platform() == "macos" and bmk.CPU() == "x86" then
+		globals.SetOption("cc_opts", arg1, arg2)
+	end
+@end
+
+@define addlinuxccopt
+	if bmk.Platform() == "linux" or bmk.Platform() == "android" or bmk.Platform() == "raspberrypi" then
+		globals.AddOption("cc_opts", arg1, arg2)
+	end
+@end
+
+@define setlinuxccopt
+	if bmk.Platform() == "linux" or bmk.Platform() == "android" or bmk.Platform() == "raspberrypi" then
+		globals.SetOption("cc_opts", arg1, arg2)
+	end
+@end
+
+## removes a cc_opt option
+@define rmccopt
+	globals.Remove("cc_opts", arg1)
+@end
+
+@define addldopt
+	globals.AddOption("ld_opts", arg1, arg2)
+@end
+
+@define setldopt
+	globals.SetOption("ld_opts", arg1, arg2)
+@end
+
+@define addwin32ldopt
+	if bmk.Platform() == "win32" then
+		globals.AddOption("ld_opts", arg1, arg2)
+	end
+@end
+
+@define addmacldopt
+	if bmk.Platform() == "macos" then
+		globals.AddOption("ld_opts", arg1, arg2)
+	end
+@end
+
+@define addlinuxldopt
+	if bmk.Platform() == "linux" or bmk.Platform() == "android" or bmk.Platform() == "raspberrypi" then
+		globals.AddOption("ld_opts", arg1, arg2)
+	end
+@end
+
+@define setmacldopt
+	if bmk.Platform() == "macos" then
+		globals.SetOption("ld_opts", arg1, arg2)
+	end
+@end
+
+@define setwin32ldopt
+	if bmk.Platform() == "win32" then
+		globals.SetOption("ld_opts", arg1, arg2)
+	end
+@end
+
+@define setlinuxldopt
+	if bmk.Platform() == "linux" then
+		globals.SetOption("ld_opts", arg1, arg2)
+	end
+@end
+
+@define setraspberrypildopt
+	if bmk.Platform() == "raspberrypi" then
+		globals.SetOption("ld_opts", arg1, arg2)
+	end
+@end
+
+# compiles the specified file, using the current options.
+@define make
+	make.Make(arg1)
+@end
+
+@define skipmod
+	globals.Add("skip_mod", arg1)
+@end
+
+@define skipmodwin32
+	if bmk.Platform() == "win32" then
+		globals.Add("skip_mod", arg1)
+	end
+@end
+
+@define skipmodmac
+	if bmk.Platform() == "macos" then
+		globals.Add("skip_mod", arg1)
+	end
+@end
+
+@define skipmodlinux
+	if bmk.Platform() == "linux" or bmk.Platform() == "android" or bmk.Platform() == "raspberrypi" then
+		globals.Add("skip_mod", arg1)
+	end
+@end
+
+# the default ccopts
+# used for compiling c-type files
+@define default_cc_opts
+
+	globals.Clear("cc_opts")
+
+	if bmk.Platform() == "macos" or bmk.Platform() == "osx" then
+		
+		if tonumber(%macos_version%) >= 4240 then
+			# macos version >= 0x1090 ?
+			globals.SetOption("cc_opts", "osversion", "-mmacosx-version-min=10.7")
+			globals.SetOption("ld_opts", "osversion", "-mmacosx-version-min=10.7")
+		elseif tonumber(%macos_version%) >= 4224 then
+			# macos version >= 0x1080 ?
+			globals.SetOption("cc_opts", "osversion", "-mmacosx-version-min=10.5")
+			globals.SetOption("ld_opts", "osversion", "-mmacosx-version-min=10.5")
+		elseif tonumber(%macos_version%) >= 4208 then
+			# macos version >= 0x1070 ?
+			globals.SetOption("cc_opts", "osversion", "-mmacosx-version-min=10.4")
+			globals.SetOption("ld_opts", "osversion", "-mmacosx-version-min=10.4")
+		elseif tonumber(%macos_version%) >= 4176 then
+			# macos version >= 0x1050 ?
+			globals.SetOption("cc_opts", "osversion", "-mmacosx-version-min=10.3")
+			globals.SetOption("ld_opts", "osversion", "-mmacosx-version-min=10.3")
+		else
+			# otherwise, fallback on same as latest (10.6)
+			globals.SetOption("cc_opts", "osversion", "-mmacosx-version-min=10.6")
+			globals.SetOption("ld_opts", "osversion", "-mmacosx-version-min=10.6")
+		end
+		
+	elseif bmk.Platform() == "ios" then
+	
+		globals.SetOption("cc_opts", "osversion", "-miphoneos-version-min=7.1")
+		
+	elseif bmk.Platform() == "win32" then
+	
+		if bmk.hasTarget("x86_64") then
+			if bmk.CPU() == "x86" then
+				globals.SetOption("cc_opts", "arch", "-m32")
+			elseif bmk.CPU() == "x64" then
+				globals.SetOption("cc_opts", "arch", "-m64")
+			end
+		else
+			globals.SetOption("cc_opts", "arch", "-march=pentium")
+		end
+
+		globals.SetOption("cc_opts", "fastmath", "-ffast-math")
+		
+	elseif bmk.Platform() == "linux" or bmk.Platform() == "android" or bmk.Platform() == "raspberrypi" or bmk.Platform() == "emscripten" then
+		globals.SetOption("cc_opts", "aliasing", "-fno-strict-aliasing")
+		if bmk.CPU() == "x86" then
+			globals.SetOption("cc_opts", "arch", "-m32")
+			globals.SetOption("cc_opts", "fancymath", "-mfancy-math-387")
+		end
+	
+	end
+
+	globals.SetOption("cc_opts", "exceptions", "-fno-exceptions")
+	globals.SetOption("cc_opts", "linker", "-c")
+	globals.SetOption("cc_opts", "optimization", "-O3")
+	if bmk.CPU() == "x64" then
+		globals.SetOption("cc_opts", "simd", "-msse3")
+	end
+	
+	if bmk.IsDebugBuild() == 0 then
+		if bmk.Platform() ~= "emscripten" then
+			globals.SetOption("cc_opts", "stripsymbols", "-s")
+		end
+	end
+
+@end
+
+
+# Supported file extensions
+#
+# SOURCE_UNKNOWN = 0
+# SOURCE_BMX = 1
+# SOURCE_IFACE = 2
+# SOURCE_C = 4
+# SOURCE_HEADER = 8
+# SOURCE_ASM = 16
+@define source_type
+	local ext = ";" .. arg0 .. ";"
+	
+	if string.find(";bmx;", ext) then
+		return 1
+	elseif string.find(";i;", ext) then
+		return 2
+	elseif string.find(";c;m;cc;cpp;cxx;mm;", ext) then
+		return 4
+	elseif string.find(";h;hpp;hxx;", ext) then
+		return 8
+	elseif string.find(";s;asm;", ext) then
+		return 16
+	end
+	
+	return 0
+@end

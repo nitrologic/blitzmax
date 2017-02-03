@@ -127,9 +127,9 @@ Const MENUBUILDALLMODULES=32
 Const MENUQUICKENABLED=33
 Const MENUDEBUGENABLED=34
 Const MENUGUIENABLED=35
+Const MENUNGENABLED=36
 
-Const MENUCOMMANDLINE=36
-'Const MENUSYNCMODS=37
+Const MENUCOMMANDLINE=37
 Const MENUIMPORTBB=38
 Const MENUFINDINFILES=39
 Const MENUPROJECTMANAGER=40
@@ -4922,10 +4922,14 @@ Type TOpenCode Extends TToolPanel
 		Return True
 	End Method
 
-	Method BuildSource(quick,debug,threaded,gui,run)
+	Method BuildSource(quick,debug,threaded,gui,run,ng)
 		Local cmd$,out$,arg$		
 		If isbmx Or isc Or iscpp
-			cmd$=quote(host.bmkpath)
+			If ng
+				cmd$=quote(host.bbmkpath)
+			Else
+				cmd$=quote(host.bmkpath)
+			EndIf
 			cmd$:+" makeapp"
 			If run cmd$:+" -x"
 			If debug cmd$:+" -d" Else cmd$:+" -r"	'-v
@@ -5037,9 +5041,9 @@ Type TOpenCode Extends TToolPanel
 			Case TOOLREPLACE
 				Return FindReplace(String(argument))	
 			Case TOOLBUILD
-				BuildSource host.quickenabled,host.debugenabled,host.threadedenabled,host.guienabled,False
+				BuildSource host.quickenabled,host.debugenabled,host.threadedenabled,host.guienabled,host.ngenabled,False
 			Case TOOLRUN
-				BuildSource host.quickenabled,host.debugenabled,host.threadedenabled,host.guienabled,True
+				BuildSource host.quickenabled,host.debugenabled,host.threadedenabled,host.guienabled,host.ngenabled,True
 			Case TOOLLOCK
 				SetLocked True
 			Case TOOLUNLOCK
@@ -5192,7 +5196,9 @@ Type TCodePlay
 	Const EDITMODE=1
 	Const DEBUGMODE=2
 	
-	Field bmxpath$,bmkpath$
+	Field bmxpath$
+	Field bmkpath$
+	Field bbmkpath$
 	Field panels:TToolPanel[]
 	Field helppanel:THelpPanel
 	Field currentpanel:TToolPanel
@@ -5233,6 +5239,7 @@ Type TCodePlay
 	Field debugenable:TGadget,debugenabled	'menu,state
 	Field threadedenable:TGadget,threadedenabled
 	Field guienable:TGadget,guienabled		'menu,state
+	Field ngenable:TGadget,ngenabled		'menu,state
 	Field quickhelp:TQuickHelp
 	Field running
 	Field recentmenu:TGadget
@@ -5356,7 +5363,9 @@ Type TCodePlay
 		debugenabled=True
 		threadedenabled=False
 		guienabled=True	
-		splitpos=200;splitorientation = SPLIT_VERTICAL
+		ngenabled=False
+		splitpos=200
+		splitorientation = SPLIT_VERTICAL
 ' read ini
 		stream=ReadFile(bmxpath+"/cfg/ide.ini")
 		If Not stream
@@ -5393,6 +5402,8 @@ Type TCodePlay
 					threadedenabled=Int(b$)
 				Case "prg_gui"
 					guienabled=Int(b$)
+				Case "prg_ng"
+					ngenabled=Int(b$)
 				Case "cmd_line"
 					cmdline=b$
 				Case "prg_locked"
@@ -5434,6 +5445,7 @@ Type TCodePlay
 		stream.WriteLine "prg_debug="+debugenabled
 		stream.WriteLine "prg_threaded="+threadedenabled
 		stream.WriteLine "prg_gui="+guienabled
+		stream.WriteLine "prg_ng="+ngenabled
 		stream.WriteLine "win_size="+winsize.ToString()
 		stream.WriteLine "win_max="+winmax
 		stream.WriteLine "split_position="+SplitterPosition(split)
@@ -5624,11 +5636,15 @@ Type TCodePlay
 		Next
 	End Method
 	
-	Method BuildModules(buildall)
+	Method BuildModules(buildall,ng)
 		Local cmd$,out$,exe$
 		output.Stop
 		SaveAll
-		cmd$=quote(bmkpath)
+		If ng
+			cmd$=quote(bbmkpath)
+		Else
+			cmd$=quote(bmkpath)
+		EndIf
 		cmd$:+" makemods "
 		
 		If buildall cmd$:+"-a "
@@ -5874,8 +5890,10 @@ Type TCodePlay
 		DeleteFile bmxpath+"/tmp/t.exe"
 ?
 		bmkpath=bmxpath+"/bin/bmk"
+		bbmkpath=bmxpath+"/bin/bbmk"
 ?Win32
 		bmkpath:+".exe"
+		bbmkpath:+".exe"
 ?
 		dir$=bmxpath+"/mod"
 		If FileType(dir)=FILETYPE_NONE
@@ -6174,6 +6192,7 @@ Type TCodePlay
 				threadedenable=CreateMenu("{{menu_program_buildoptions_threaded}}",MENUTHREADEDENABLED,buildoptions)
 		EndIf
 		guienable=CreateMenu("{{menu_program_buildoptions_guiapp}}",MENUGUIENABLED,buildoptions)
+		ngenable=CreateMenu("{{menu_program_buildoptions_ngapp}}",MENUNGENABLED,buildoptions)
 		CreateMenu "",0,program
 		CreateMenu "{{menu_program_lockbuildfile}}",MENULOCKBUILD,program
 		CreateMenu "{{menu_program_unlockbuildfile}}",MENUUNLOCKBUILD,program
@@ -6195,6 +6214,7 @@ Type TCodePlay
 		If debugenabled CheckMenu debugenable
 		If threadedenabled CheckMenu threadedenable
 		If guienabled CheckMenu guienable
+		If ngenabled CheckMenu ngenable
 		
 ?Win32		
 		Local mingw$=getenv_("MINGW")
@@ -6337,9 +6357,9 @@ Type TCodePlay
 				RunCode()
 
 			Case MENUBUILDMODULES
-				If CheckDemo() BuildModules False
+				If CheckDemo() BuildModules False,ngenabled
 			Case MENUBUILDALLMODULES
-				If CheckDemo() BuildModules True	
+				If CheckDemo() BuildModules True,ngenabled	
 			'Case MENUSYNCMODS
 			'	If CheckDemo() And CloseAll(False) syncmodsreq.Show
 			Case MENUDOCMODS
@@ -6398,6 +6418,16 @@ Type TCodePlay
 				Else
 					guienabled=True
 					CheckMenu guienable
+				EndIf
+				UpdateWindowMenu window
+
+			Case MENUNGENABLED
+				If ngenabled
+					ngenabled=False
+					UncheckMenu ngenable							
+				Else
+					ngenabled=True
+					CheckMenu ngenable
 				EndIf
 				UpdateWindowMenu window
 

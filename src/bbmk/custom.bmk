@@ -1,0 +1,31 @@
+# Example options
+
+# ** compiler optimisation **
+#setccopt optimization -O3
+
+# ** specific architecture **
+#setwin32ccopt arch -march=pentium3
+
+#setmacx86ccopt arch -march=nocona
+#setmacx86ccopt math -msse3
+
+
+
+# ** android configuration **
+# ** architecture is determined by build settings **
+# ** NOTE : android build requires bmk resources folder at BlitzMax/resources **
+
+#addoption android.home "/PATH/TO/SDK/android-sdk-macosx"
+#addoption android.sdk "/PATH/TO/SDK/android-sdk-macosx"
+#addoption android.ndk "/PATH/TO/NDK/android-ndk-r10c"
+#addoption android.toolchain.version "4.9"
+#addoption android.platform "12"
+
+# ** Optional SDK target **
+#    Will try to determine valid target to update project.properties, if not set.
+#addoption android.sdk.target "23"
+
+# ** optional ant location **
+# ** defaults to resources/apache-ant **
+
+#addoption ant.home "/PATH/TO/ANT/HOME"
